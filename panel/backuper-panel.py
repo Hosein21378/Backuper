@@ -38,7 +38,11 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "v0.7.0"
+VERSION = "v1.0.0"
+
+# Branding - change these to make the project your own
+PRODUCT_NAME = "Backuper"
+REPO_URL = "https://github.com/Hosein21378/Backuper"
 DEFAULT_PORT = 8080
 DEFAULT_SCRIPT = "/usr/local/lib/backuper/backuper.sh"
 CONFIG_FILE = os.environ.get("BACKUPER_PANEL_CONFIG", "/root/.backuper_panel.conf")
@@ -402,6 +406,9 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
+    def render(self, page):
+        return page.replace("{{REPO}}", REPO_URL).replace("{{PRODUCT}}", PRODUCT_NAME)
+
     def _json(self, obj, code=200):
         self._send(code, json.dumps(obj), "application/json; charset=utf-8")
 
@@ -447,7 +454,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(302, "", extra={"Location": "/login"})
 
         if path == "/":
-            return self._send(200, INDEX_HTML)
+            return self._send(200, self.render(INDEX_HTML))
         if path == "/api/overview":
             return self._json(self.overview())
         if path == "/api/templates":
@@ -498,7 +505,7 @@ class Handler(BaseHTTPRequestHandler):
             message = "نام کاربری یا رمز عبور نادرست است."
         else:
             message = ""
-        return self._send(200, LOGIN_HTML.replace("{{MSG}}", html.escape(message)))
+        return self._send(200, self.render(LOGIN_HTML).replace("{{MSG}}", html.escape(message)))
 
     def do_login(self):
         cfg = load_config()
@@ -821,6 +828,7 @@ LOGIN_HTML = """<!doctype html>
   <input name="password" type="password" autocomplete="current-password" required autofocus>
   <button type="submit">ورود</button>
   <div class="msg">{{MSG}}</div>
+  <div style="margin-top:14px;font-size:11.5px;color:#5f7484"><a href="{{REPO}}" target="_blank" rel="noopener" style="color:#5f7484">github.com/Hosein21378/Backuper</a></div>
 </form>
 </body>
 </html>
@@ -903,6 +911,7 @@ INDEX_HTML = r"""<!doctype html>
   <span class="badge" id="ver">…</span>
   <span class="badge" id="host"></span>
   <span class="spacer"></span>
+  <a href="{{REPO}}" target="_blank" rel="noopener" style="font-size:12.5px;text-decoration:none">GitHub</a>
   <a href="/logout" style="font-size:12.5px;text-decoration:none" onclick="return logout(event)">خروج</a>
 </header>
 <main>

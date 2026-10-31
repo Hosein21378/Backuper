@@ -8,7 +8,8 @@
 #
 set -e
 
-REPO_RAW="${BACKUPER_REPO_RAW:-https://raw.githubusercontent.com/erfjab/Backuper/master}"
+REPO_RAW="${BACKUPER_REPO_RAW:-https://raw.githubusercontent.com/Hosein21378/Backuper/master}"
+REPO_URL="https://github.com/Hosein21378/Backuper"
 PANEL_BIN="/usr/local/bin/backuper-panel"
 PANEL_LIB="/usr/local/lib/backuper"
 SCRIPT_PATH="$PANEL_LIB/backuper.sh"
@@ -128,6 +129,7 @@ else
     echo " Password : (unchanged - see $CONF)"
 fi
 echo " Manage   : $MANAGE"
+echo " Project  : $REPO_URL"
 echo
 echo " If the port is not reachable, open it in your firewall:"
 echo "   ufw allow $PANEL_PORT/tcp    # or: firewall-cmd --add-port=$PANEL_PORT/tcp"

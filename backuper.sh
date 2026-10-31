@@ -6,12 +6,16 @@ readonly TAG="_backuper."
 readonly BACKUP_SUFFIX="${TAG}zip"
 readonly DATABASE_SUFFIX="${TAG}sql"
 readonly LOGS_SUFFIX="${TAG}log"
-readonly VERSION="v0.7.0"
-readonly OWNER="@specialboy213"
-readonly SPONSORTEXT="🚀 ساخت پنل نمایندگی V2Ray بدون دانش فنی! در چند ثانیه پنلت رو بساز و شروع به درآمد کن"
-readonly SPONSORLINK="https://t.me/V2RAY_WOLF_bot"
-# Change the repository URLs below when you run a fork
-readonly REPO_RAW="https://raw.githubusercontent.com/erfjab/Backuper/master"
+readonly VERSION="v1.0.0"
+
+# ---------------------------------------------------------------------------
+# Branding - change these values to make the project your own
+# ---------------------------------------------------------------------------
+readonly PROJECT_NAME="Backuper"
+readonly PROJECT_OWNER="Hosein21378"
+readonly PROJECT_OWNER_LINK="https://github.com/Hosein21378"
+readonly GITHUB_REPO="Hosein21378/Backuper"
+readonly REPO_RAW="https://raw.githubusercontent.com/${GITHUB_REPO}/master"
 
 # ---------------------------------------------------------------------------
 # Non-interactive mode (used by the web panel and by automation)
@@ -253,7 +257,7 @@ menu() {
                 install_panel
                 ;;
             6)
-                print "Thank you for using @ErfJabs script. Goodbye!"
+                print "Thank you for using ${PROJECT_NAME}. Goodbye!"
                 exit 0
                 ;;
             *)
@@ -299,7 +303,7 @@ generate_remark() {
         return 0
     fi
 
-    print "We need a remark for the backup file (e.g., Master, panel, ErfJab).\n"
+    print "We need a remark for the backup file (e.g., master, shop, server1).\n"
 
     while true; do
         input "Enter a remark: " REMARK
@@ -1387,9 +1391,9 @@ telegram_finalize() {
     fi
 
     CAPTION="
-📦 <b>From </b><code>\${ip}</code> [By <b><a href='https://t.me/erfjabs'>@ErfJabs</a></b>]
-<b>➖➖➖➖Sponsor➖➖➖➖</b>
-<a href='${SPONSORLINK}'>${SPONSORTEXT}</a>"
+📦 <b>${PROJECT_NAME}</b>
+<b>From </b><code>\${ip}</code>
+<a href='${PROJECT_OWNER_LINK}'>${PROJECT_OWNER}</a>"
     LIMITSIZE=49
     success "Telegram configuration completed successfully."
 }
@@ -1474,7 +1478,7 @@ discord_test_connection() {
 
 discord_finalize() {
     PLATFORM_COMMAND="curl -s -F \"file=@\$FILE\" -F \"payload_json={\\\"content\\\": \\\"\$CAPTION\\\"}\" \"$DISCORD_WEBHOOK\""
-    CAPTION="📦 **From** \`${ip}\` [by **[@ErfJabs](https://t.me/erfjabs)**]\n➖➖➖➖**Sponsor**➖➖➖➖\n[${SPONSORTEXT}](${SPONSORLINK})"
+    CAPTION="📦 **${PROJECT_NAME}**\n**From** \`${ip}\`\n[${PROJECT_OWNER}](${PROJECT_OWNER_LINK})"
     LIMITSIZE=24
     success "Discord configuration completed successfully."
 }
@@ -1561,8 +1565,8 @@ set envelope_from=yes
 EOF
 
     chmod 600 ~/.muttrc
-    CAPTION="<html><body><p><b>📦 From </b><code>\${ip}</code> [by <b><a href='https://t.me/erfjabs'>@ErfJabs</a></b>]</p><p><b>➖➖➖➖Sponsor➖➖➖➖</b></p><p><a href='${SPONSORLINK}'>${SPONSORTEXT}</a></p></body></html>"
-    PLATFORM_COMMAND="echo \$CAPTION | mutt -e 'set content_type=text/html' -s 'Backuper' -a \"\$FILE\" -- \"$GMAIL_ADDRESS\""
+    CAPTION="<html><body><p><b>📦 ${PROJECT_NAME}</b></p><p><b>From </b><code>\${ip}</code></p><p><a href='${PROJECT_OWNER_LINK}'>${PROJECT_OWNER}</a></p></body></html>"
+    PLATFORM_COMMAND="echo \$CAPTION | mutt -e 'set content_type=text/html' -s '${PROJECT_NAME}' -a \"\$FILE\" -- \"$GMAIL_ADDRESS\""
     LIMITSIZE=24
     success "Gmail configuration completed successfully."
 }
@@ -2286,7 +2290,7 @@ restore_fetch_gmail() {
     log "Searching Gmail for Backuper emails..."
     local search=""
     if ! search=$(curl -s --max-time 180 --url "imaps://imap.gmail.com:993/INBOX" \
-        --user "${address}:${password}" -X 'UID SEARCH SUBJECT "Backuper"' 2>&1); then
+        --user "${address}:${password}" -X "UID SEARCH SUBJECT \"${PROJECT_NAME}\"" 2>&1); then
         wrong "Failed to connect to Gmail (IMAP). Check the address and app password."
         return 1
     fi
@@ -3024,7 +3028,7 @@ EOL
         success "Backup script location: $BACKUP_PATH"
         success "Cron job: Every $minutes minutes"
         success "First backup created and sent."
-        success "Thank you for using @ErfJabs backup script. Enjoy automated backups!"
+        success "Thank you for using ${PROJECT_NAME}. Enjoy automated backups!"
         exit 0
     else
         error "Failed to run backup script. Full output:"
