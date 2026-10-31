@@ -13,6 +13,7 @@
 
 ## Key Features  
 
+- **Restore backups from the same platform (Telegram / Discord / Gmail / local file)**
 - **Customizable remarks**  
 - **Automated scheduling**  
 - **Multi-template support**  
@@ -43,6 +44,35 @@
 - [x] **OvPanel**
 - [x] **MarzGozir**
 - [x] **PasarGuard**
+
+## Restoring a Backup
+
+Backuper can also **put a backup back on the server**, restoring it from the same
+platform the backup was sent to. Just run the script and choose `2) Restore Backup`:
+
+```bash
+sudo bash -c "$(curl -sL https://github.com/erfjab/Backuper/raw/master/backuper.sh)"
+```
+
+or run only the restore flow:
+
+```bash
+sudo bash -c "$(curl -sL https://github.com/erfjab/Backuper/raw/master/backuper.sh) restore"
+```
+
+What the restore does:
+
+- Downloads the newest backup from **Telegram**, **Discord**, **Gmail** or from a **local file**
+- Finds the backup automatically from the upload history, or lets you paste a message link / file ID
+- Detects split archives (`_backuper.z01 ... _backuper.zip`) and merges them safely
+- Asks for the password of password-protected archives
+- Creates a safety copy of the current files in `/root/prerestore-*.zip` before overwriting anything
+- Imports the database dump (`_backuper.sql`) when it exists
+- Offers to restart your docker containers after the restore
+
+> [!NOTE]
+> Restoring on a fresh server works as well: choose `Manual restore` and enter
+> your bot token / webhook URL / Gmail app password, then run the import yourself.
 
 > [!IMPORTANT]
 > We thank [AsanPanelBot](https://t.me/AsanPanelBot) for supporting and sponsoring this. project.
