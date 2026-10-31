@@ -11,16 +11,17 @@ readonly VERSION="v1.0.0"
 # ---------------------------------------------------------------------------
 # Branding - change these values to make the project your own
 # ---------------------------------------------------------------------------
-readonly PROJECT_NAME="Backuper"
+readonly PROJECT_NAME="PasarGuard Backup"
 readonly PROJECT_OWNER="Hosein21378"
 readonly PROJECT_OWNER_LINK="https://github.com/Hosein21378"
-readonly GITHUB_REPO="Hosein21378/Backuper"
-readonly REPO_RAW="https://raw.githubusercontent.com/${GITHUB_REPO}/master"
+readonly GITHUB_REPO="Hosein21378/pasarguard-backup"
+readonly REPO_BRANCH="main"
+readonly REPO_RAW="https://raw.githubusercontent.com/${GITHUB_REPO}/${REPO_BRANCH}"
 
 # ---------------------------------------------------------------------------
 # Non-interactive mode (used by the web panel and by automation)
 #
-#   BACKUPER_NONINTERACTIVE=1 bash backuper.sh install
+#   BACKUPER_NONINTERACTIVE=1 bash pasarguard-backup.sh install
 #     BACKUPER_REMARK            required, 3+ chars (letters, numbers, _)
 #     BACKUPER_TEMPLATE          1-18  (0 = custom, no template)
 #     BACKUPER_TIMER             minutes between backups (1-1440)
@@ -31,7 +32,7 @@ readonly REPO_RAW="https://raw.githubusercontent.com/${GITHUB_REPO}/master"
 #     BACKUPER_PASSWORD          optional archive password
 #     BACKUPER_DIRS_EXTRA        optional extra paths ("/a /b")
 #
-#   BACKUPER_NONINTERACTIVE=1 bash backuper.sh restore
+#   BACKUPER_NONINTERACTIVE=1 bash pasarguard-backup.sh restore
 #     BACKUPER_RESTORE_PLATFORM  telegram | discord | gmail | local
 #     BACKUPER_RESTORE_REMARK    optional remark (loads the saved profile)
 #     BACKUPER_RESTORE_MSG       Telegram message link or file id
@@ -166,7 +167,7 @@ install_panel() {
         local_panel="$script_dir/panel/install.sh"
     fi
 
-    if command -v backuper-panel &> /dev/null; then
+    if command -v pasarguard-panel &> /dev/null; then
         print "The panel is already installed on this server."
         print ""
         local answer=""
@@ -187,31 +188,31 @@ install_panel() {
         bash "$local_panel" || { wrong "Panel installation failed."; confirm; return 1; }
     else
         log "Downloading the panel installer..."
-        if ! curl -sSL "$REPO_RAW/panel/install.sh" -o /tmp/backuper-panel-install.sh; then
+        if ! curl -sSL "$REPO_RAW/panel/install.sh" -o /tmp/pasarguard-panel-install.sh; then
             wrong "Failed to download the panel installer from $REPO_RAW"
             confirm
             return 1
         fi
-        bash /tmp/backuper-panel-install.sh || { wrong "Panel installation failed."; confirm; return 1; }
-        rm -f /tmp/backuper-panel-install.sh
+        bash /tmp/pasarguard-panel-install.sh || { wrong "Panel installation failed."; confirm; return 1; }
+        rm -f /tmp/pasarguard-panel-install.sh
     fi
 
     confirm
 }
 
 start_panel_service() {
-    if command -v systemctl &> /dev/null && systemctl list-unit-files 2>/dev/null | grep -q '^backuper-panel.service'; then
-        systemctl enable backuper-panel &> /dev/null || true
-        systemctl restart backuper-panel || { wrong "Failed to start backuper-panel.service"; return 1; }
+    if command -v systemctl &> /dev/null && systemctl list-unit-files 2>/dev/null | grep -q '^pasarguard-panel.service'; then
+        systemctl enable pasarguard-panel &> /dev/null || true
+        systemctl restart pasarguard-panel || { wrong "Failed to start pasarguard-panel.service"; return 1; }
         success "Panel service started."
         print "Open: http://$(hostname -I | awk '{print $1}'):8080"
         return 0
     fi
 
-    pkill -f backuper-panel.py &> /dev/null || true
-    nohup backuper-panel --port 8080 --no-auth &>> /root/.backuper_panel.log &
+    pkill -f pasarguard-panel.py &> /dev/null || true
+    nohup pasarguard-panel --port 8080 --no-auth &>> /root/.pasarguard_panel.log &
     sleep 1
-    success "Panel started in the background (log: /root/.backuper_panel.log)."
+    success "Panel started in the background (log: /root/.pasarguard_panel.log)."
     print "Open: http://$(hostname -I | awk '{print $1}'):8080"
     return 0
 }
@@ -222,9 +223,9 @@ menu() {
     install_yq
     while true; do
         clear
-        print "======== Backuper Menu [$VERSION] ========"
+        print "======== ${PROJECT_NAME} Menu [$VERSION] ========"
         print ""
-        print "1️) Install Backuper"
+        print "1) Install / Create Backup"
         print "2) Restore Backup"
         print "3) Remove All Backups"
         print "4) Run All Backup Scripts"
@@ -1376,9 +1377,9 @@ telegram_test_connection() {
     local response
     log "Checking Telegram bot..."
     if [[ -n "${TOPIC_ID:-}" ]]; then
-        response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id="$CHAT_ID" -d message_thread_id="$TOPIC_ID" -d text="Hi, Backuper Test Message!")
+        response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id="$CHAT_ID" -d message_thread_id="$TOPIC_ID" -d text="Hi, PasarGuard Backup test message!")
     else
-        response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id="$CHAT_ID" -d text="Hi, Backuper Test Message!")
+        response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id="$CHAT_ID" -d text="Hi, PasarGuard Backup test message!")
     fi
     [[ "$response" -eq 200 ]]
 }
@@ -1472,7 +1473,7 @@ telegram_progress() {
 discord_test_connection() {
     local response
     log "Checking Discord Webhook..."
-    response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DISCORD_WEBHOOK" -H "Content-Type: application/json" -d '{"content": "Hi, Backuper Test Message!"}')
+    response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DISCORD_WEBHOOK" -H "Content-Type: application/json" -d '{"content": "Hi, PasarGuard Backup test message!"}')
     [[ "$response" -eq 204 ]]
 }
 
@@ -2287,7 +2288,7 @@ restore_fetch_gmail() {
     GMAIL_ADDRESS="$address"
     GMAIL_PASSWORD="$password"
 
-    log "Searching Gmail for Backuper emails..."
+    log "Searching Gmail for backup emails..."
     local search=""
     if ! search=$(curl -s --max-time 180 --url "imaps://imap.gmail.com:993/INBOX" \
         --user "${address}:${password}" -X "UID SEARCH SUBJECT \"${PROJECT_NAME}\"" 2>&1); then
@@ -2298,7 +2299,7 @@ restore_fetch_gmail() {
     local uids=()
     read -r -a uids <<< "$(printf '%s\n' "$search" | sed -n 's/^\* SEARCH //p' | tr -d '\r')"
     if [[ ${#uids[@]} -eq 0 ]]; then
-        wrong "No backup email was found in the Inbox (subject: Backuper)."
+        wrong "No backup email was found in the Inbox (subject: ${PROJECT_NAME})."
         return 1
     fi
     log "Found ${#uids[@]} backup email(s). Checking the newest ones..."
@@ -2369,7 +2370,7 @@ restore_fetch_local() {
             local afiles=()
             while IFS= read -r f; do afiles+=("$f"); done < <(find "$path" -maxdepth 1 -type f \( -name "*${TAG}zip" -o -name "*${TAG}z[0-9][0-9]" \) | sort)
             if [ ${#afiles[@]} -eq 0 ]; then
-                error "No Backuper archive was found in: $path"
+                error "No backup archive was found in: $path"
             fi
             ARCHIVE_FILES=("${afiles[@]}")
         elif [[ "$path" == *.z[0-9][0-9] ]]; then
@@ -2408,7 +2409,7 @@ restore_fetch_local() {
             local files=()
             while IFS= read -r f; do files+=("$f"); done < <(find "$path" -maxdepth 1 -type f \( -name "*${TAG}zip" -o -name "*${TAG}z[0-9][0-9]" \) | sort)
             if [[ ${#files[@]} -eq 0 ]]; then
-                wrong "No Backuper archive was found in: $path"
+                wrong "No backup archive was found in: $path"
                 continue
             fi
             ARCHIVE_FILES=()
@@ -2858,7 +2859,7 @@ restore_backup() {
     clear
     print "======== Restore Backup [$VERSION] ========"
     print ""
-    print "This will download a backup created by Backuper from the same platform"
+    print "This will download a backup created by ${PROJECT_NAME} from the same platform"
     print "you send your backups to, and restore it on this server."
     print ""
     print "${COLORS[orange]}Note: files on this server will be overwritten.${COLORS[reset]}"
@@ -2931,7 +2932,7 @@ upload_log="/root/.backuper_${REMARK}_upload.log"
 : > "\$upload_log" 2>/dev/null || true
 
 # Clean up old backup files (only specific backup files)
-rm -rf *"${REMARK}${TAG}"* 2>/dev/null || true
+rm -rf "/root/"*"${REMARK}${TAG}"* 2>/dev/null || true
 $DB_CLEANUP
 
 # Backup database
@@ -2970,14 +2971,14 @@ else
     exit 1
 fi
 
-rm -rf *"${REMARK}${TAG}"* 2>/dev/null || true
+rm -rf "/root/"*"${REMARK}${TAG}"* 2>/dev/null || true
 EOL
 
     # Save the restore configuration (used by the "Restore Backup" menu)
     local STATE_PATH
     STATE_PATH=$(restore_state_file "$REMARK")
     {
-        echo "# Backuper restore configuration - generated automatically"
+        echo "# ${PROJECT_NAME} restore configuration - generated automatically"
         echo "REMARK=$(printf '%q' "$REMARK")"
         echo "PLATFORM=$(printf '%q' "${PLATFORM:-}")"
         echo "BACKUP_DIRECTORIES=$(printf '%q' "${BACKUP_DIRECTORIES:-}")"
@@ -3066,7 +3067,7 @@ main() {
             ;;
         *)
             wrong "Unknown option: $1"
-            print "Usage: bash backuper.sh [restore]"
+            print "Usage: bash pasarguard-backup.sh [restore]"
             exit 1
             ;;
     esac

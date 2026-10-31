@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Backuper Web Panel
-==================
-A tiny, dependency-free web panel for Backuper.
+PasarGuard Backup - Web Panel
+=============================
+A tiny, dependency-free web panel for PasarGuard Backup.
 
-It talks to `backuper.sh` in non-interactive mode, so the panel never
+It talks to `pasarguard-backup.sh` in non-interactive mode, so the panel never
 re-implements the backup logic: every action is the real script.
 
 Features
@@ -16,9 +16,9 @@ Features
   * password protected (session cookie), single file, stdlib only
 
 Usage
-  backuper-panel --port 8080
-  backuper-panel --port 8080 --no-auth
-  backuper-panel --set-password
+  pasarguard-panel --port 8080
+  pasarguard-panel --port 8080 --no-auth
+  pasarguard-panel --set-password
 """
 
 import argparse
@@ -41,11 +41,12 @@ from urllib.parse import parse_qs, urlparse
 VERSION = "v1.0.0"
 
 # Branding - change these to make the project your own
-PRODUCT_NAME = "Backuper"
-REPO_URL = "https://github.com/Hosein21378/Backuper"
+PRODUCT_NAME = "PasarGuard Backup"
+PRODUCT_NAME_FA = "بکاپ پاسارگارد"
+REPO_URL = "https://github.com/Hosein21378/pasarguard-backup"
 DEFAULT_PORT = 8080
-DEFAULT_SCRIPT = "/usr/local/lib/backuper/backuper.sh"
-CONFIG_FILE = os.environ.get("BACKUPER_PANEL_CONFIG", "/root/.backuper_panel.conf")
+DEFAULT_SCRIPT = "/usr/local/lib/pasarguard-backup/pasarguard-backup.sh"
+CONFIG_FILE = os.environ.get("BACKUPER_PANEL_CONFIG", "/root/.pasarguard_panel.conf")
 COOKIE_NAME = "bp_session"
 SESSION_TTL = 12 * 3600
 LOG_DIR = "/root"
@@ -273,7 +274,7 @@ def detect_panels():
 
 
 # ---------------------------------------------------------------------------
-# Process manager (streams the output of backuper.sh)
+# Process manager (streams the output of pasarguard-backup.sh)
 # ---------------------------------------------------------------------------
 
 
@@ -382,7 +383,7 @@ def get_proc(proc_id):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "BackuperPanel/" + VERSION
+    server_version = "PasarGuardBackupPanel/" + VERSION
     script = DEFAULT_SCRIPT
     no_auth = False
 
@@ -718,7 +719,7 @@ class Handler(BaseHTTPRequestHandler):
             env["BACKUPER_DIRS_EXTRA"] = dirs
 
         if not os.path.exists(self.script):
-            return self._json({"error": "اسکریپت backuper.sh پیدا نشد: %s" % self.script}, 500)
+            return self._json({"error": "اسکریپت pasarguard-backup.sh پیدا نشد: %s" % self.script}, 500)
 
         proc = new_proc(["bash", self.script, "install"], env)
         return self._json({"id": proc.id})
@@ -767,7 +768,7 @@ class Handler(BaseHTTPRequestHandler):
         if not body.get("confirmed"):
             return self._json({"error": "برای بازگردانی باید تأیید کنید."}, 400)
         if not os.path.exists(self.script):
-            return self._json({"error": "اسکریپت backuper.sh پیدا نشد: %s" % self.script}, 500)
+            return self._json({"error": "اسکریپت pasarguard-backup.sh پیدا نشد: %s" % self.script}, 500)
 
         proc = new_proc(["bash", self.script, "restore"], env)
         return self._json({"id": proc.id})
@@ -797,7 +798,7 @@ LOGIN_HTML = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ورود به پنل بکاپر</title>
+<title>ورود به بکاپ پاسارگارد</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -820,7 +821,7 @@ LOGIN_HTML = """<!doctype html>
 </head>
 <body>
 <form method="post" action="/login">
-  <h1>📦 پنل بکاپر</h1>
+  <h1>📦 بکاپ پاسارگارد</h1>
   <p class="sub">مدیریت بکاپ و بازگردانی</p>
   <label>نام کاربری</label>
   <input name="username" value="admin" autocomplete="username" required>
@@ -828,7 +829,7 @@ LOGIN_HTML = """<!doctype html>
   <input name="password" type="password" autocomplete="current-password" required autofocus>
   <button type="submit">ورود</button>
   <div class="msg">{{MSG}}</div>
-  <div style="margin-top:14px;font-size:11.5px;color:#5f7484"><a href="{{REPO}}" target="_blank" rel="noopener" style="color:#5f7484">github.com/Hosein21378/Backuper</a></div>
+  <div style="margin-top:14px;font-size:11.5px;color:#5f7484"><a href="{{REPO}}" target="_blank" rel="noopener" style="color:#5f7484">github.com/Hosein21378/pasarguard-backup</a></div>
 </form>
 </body>
 </html>
@@ -839,7 +840,7 @@ INDEX_HTML = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>پنل بکاپر</title>
+<title>بکاپ پاسارگارد</title>
 <style>
   :root { color-scheme: dark; --bg:#0b0f14; --card:#111820; --line:#1e2a35; --txt:#e7eef2;
           --mut:#8aa0b0; --acc:#2fd39b; --acc2:#20b37f; --warn:#ffb454; --err:#ff6b6b; }
@@ -907,7 +908,7 @@ INDEX_HTML = r"""<!doctype html>
 </head>
 <body>
 <header>
-  <h1>📦 پنل بکاپر</h1>
+  <h1>📦 بکاپ پاسارگارد</h1>
   <span class="badge" id="ver">…</span>
   <span class="badge" id="host"></span>
   <span class="spacer"></span>
@@ -1101,7 +1102,7 @@ async function loadOverview() {
     $('host').textContent = (data.info.ip || data.info.host || '');
     const msgs = [];
     if (!data.info.root) msgs.push('پنل با دسترسی root اجرا نشده است؛ نصب بکاپ و بازگردانی نیاز به root دارد.');
-    if (!data.info.script_exists) msgs.push('اسکریپت backuper.sh پیدا نشد: ' + data.info.script);
+    if (!data.info.script_exists) msgs.push('اسکریپت pasarguard-backup.sh پیدا نشد: ' + data.info.script);
     $('warn').style.display = msgs.length ? '' : 'none';
     $('warn').textContent = msgs.join('  •  ');
     renderJobs();
@@ -1314,10 +1315,10 @@ setInterval(() => { if ($('tab-dash').style.display !== 'none') loadOverview(); 
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Backuper web panel")
+    parser = argparse.ArgumentParser(description="PasarGuard Backup web panel")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
-    parser.add_argument("--script", default=DEFAULT_SCRIPT, help="path to backuper.sh")
+    parser.add_argument("--script", default=DEFAULT_SCRIPT, help="path to pasarguard-backup.sh")
     parser.add_argument("--no-auth", action="store_true", help="disable the login (not recommended)")
     parser.add_argument("--set-password", nargs="?", const="", metavar="PASSWORD",
                         help="set (or generate) the panel password and exit")
@@ -1343,7 +1344,7 @@ def main():
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     server.daemon_threads = True
-    print("Backuper panel %s listening on http://%s:%d" % (VERSION, args.host, args.port))
+    print("PasarGuard Backup panel %s listening on http://%s:%d" % (VERSION, args.host, args.port))
     print("script: %s" % args.script)
     try:
         server.serve_forever()
