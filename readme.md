@@ -13,6 +13,7 @@
 
 ## Key Features  
 
+- **Web panel (dashboard, live logs, one-click backup & restore)**
 - **Restore backups from the same platform (Telegram / Discord / Gmail / local file)**
 - **Customizable remarks**  
 - **Automated scheduling**  
@@ -85,6 +86,35 @@ To install the latest version, run:
 ```bash
 sudo bash -c "$(curl -sL https://github.com/erfjab/Backuper/raw/master/backuper.sh)"
 ```  
+
+## Web Panel
+
+Backuper ships with a small, dependency-free web panel (pure Python 3, no pip packages).
+It is a thin UI over the same `backuper.sh`, so nothing about your backups changes.
+
+```bash
+sudo bash -c "$(curl -sL https://github.com/erfjab/Backuper/raw/master/panel/install.sh)"
+```
+
+The installer prints the panel URL, the user and the generated password.
+Or install it from the CLI menu: `5) Web Panel`.
+
+What you can do in the panel:
+
+| Tab | What it does |
+|-----|--------------|
+| **Dashboard** | every installed backup with its source, schedule, last run — run now, enable/disable, read the log, delete |
+| **New backup** | pick the template (detected panels are marked), the interval, the platform and its credentials, an archive password and extra paths |
+| **Restore** | restore from Telegram / Discord / Gmail / a local archive, with a live console and confirmation |
+
+Other details:
+
+- runs as a **systemd service** (`backuper-panel`), restarts automatically
+- **password protected** (session cookie). Change the password with `backuper-panel --set-password`
+- every operation is streamed **live** in the browser, and you can type answers into the console
+- the panel talks to the script in *non-interactive mode* (`BACKUPER_NONINTERACTIVE=1`), which is
+  also usable directly for automation — see the header of `backuper.sh`
+- put it behind a firewall / reverse proxy: it can change files as root
 
 ## 💙 Support the Project  
 

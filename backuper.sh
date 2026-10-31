@@ -10,6 +10,33 @@ readonly VERSION="v0.7.0"
 readonly OWNER="@specialboy213"
 readonly SPONSORTEXT="🚀 ساخت پنل نمایندگی V2Ray بدون دانش فنی! در چند ثانیه پنلت رو بساز و شروع به درآمد کن"
 readonly SPONSORLINK="https://t.me/V2RAY_WOLF_bot"
+# Change the repository URLs below when you run a fork
+readonly REPO_RAW="https://raw.githubusercontent.com/erfjab/Backuper/master"
+
+# ---------------------------------------------------------------------------
+# Non-interactive mode (used by the web panel and by automation)
+#
+#   BACKUPER_NONINTERACTIVE=1 bash backuper.sh install
+#     BACKUPER_REMARK            required, 3+ chars (letters, numbers, _)
+#     BACKUPER_TEMPLATE          1-18  (0 = custom, no template)
+#     BACKUPER_TIMER             minutes between backups (1-1440)
+#     BACKUPER_PLATFORM          telegram | discord | gmail
+#     BACKUPER_TG_TOKEN / BACKUPER_TG_CHAT / BACKUPER_TG_TOPIC
+#     BACKUPER_DISCORD_WEBHOOK
+#     BACKUPER_GMAIL_ADDRESS / BACKUPER_GMAIL_PASSWORD
+#     BACKUPER_PASSWORD          optional archive password
+#     BACKUPER_DIRS_EXTRA        optional extra paths ("/a /b")
+#
+#   BACKUPER_NONINTERACTIVE=1 bash backuper.sh restore
+#     BACKUPER_RESTORE_PLATFORM  telegram | discord | gmail | local
+#     BACKUPER_RESTORE_REMARK    optional remark (loads the saved profile)
+#     BACKUPER_RESTORE_MSG       Telegram message link or file id
+#     BACKUPER_RESTORE_PATH      local archive path
+#     BACKUPER_ZIP_PASSWORD      password of a protected archive
+#     BACKUPER_RESTORE_YES=1     skip the confirmation
+#     BACKUPER_RESTORE_DB        yes|no  (import the database dump)
+#     BACKUPER_RESTORE_RESTART   yes|no  (restart docker containers)
+# ---------------------------------------------------------------------------
 
 
 # ANSI color codes
@@ -28,7 +55,15 @@ success() { echo -e "${COLORS[spring]}${COLORS[green]}[SUCCESS]${COLORS[reset]} 
 
 # Interactive functions
 input() { read -p "$(echo -e "${COLORS[orange]}▶ $1${COLORS[reset]} ")" "$2"; }
-confirm() { read -p "$(echo -e "${COLORS[pink]}Press any key to continue...${COLORS[reset]}")"; }
+confirm() {
+    # Skipped when the script is driven by the web panel (non-interactive mode)
+    if noni; then return 0; fi
+    read -p "$(echo -e "${COLORS[pink]}Press any key to continue...${COLORS[reset]}")"
+}
+
+# Non-interactive mode: all values are taken from BACKUPER_* environment variables.
+# Used by the web panel and by automation (cron / CI).
+noni() { [ -n "${BACKUPER_NONINTERACTIVE:-}" ]; }
 
 # Error handling
 trap 'error "An error occurred. Exiting..."' ERR
@@ -112,6 +147,71 @@ install_yq() {
 
     success "yq installed successfully."
 }
+install_panel() {
+    clear
+    print "======== Web Panel [$VERSION] ========"
+    print ""
+    print "The panel gives you a web interface for creating backups, running them,"
+    print "watching the logs and restoring a backup - from any browser."
+    print ""
+
+    local local_panel=""
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+    if [ -n "$script_dir" ] && [ -f "$script_dir/panel/install.sh" ]; then
+        local_panel="$script_dir/panel/install.sh"
+    fi
+
+    if command -v backuper-panel &> /dev/null; then
+        print "The panel is already installed on this server."
+        print ""
+        local answer=""
+        input "Do you want to start/restart it? (yes/no): " answer
+        if [[ "$answer" == "yes" ]]; then
+            start_panel_service
+        fi
+        confirm
+        return 0
+    fi
+
+    local answer=""
+    input "Install the web panel now? (yes/no): " answer
+    [[ "$answer" == "yes" ]] || return 0
+
+    if [ -n "$local_panel" ]; then
+        log "Installing from: $local_panel"
+        bash "$local_panel" || { wrong "Panel installation failed."; confirm; return 1; }
+    else
+        log "Downloading the panel installer..."
+        if ! curl -sSL "$REPO_RAW/panel/install.sh" -o /tmp/backuper-panel-install.sh; then
+            wrong "Failed to download the panel installer from $REPO_RAW"
+            confirm
+            return 1
+        fi
+        bash /tmp/backuper-panel-install.sh || { wrong "Panel installation failed."; confirm; return 1; }
+        rm -f /tmp/backuper-panel-install.sh
+    fi
+
+    confirm
+}
+
+start_panel_service() {
+    if command -v systemctl &> /dev/null && systemctl list-unit-files 2>/dev/null | grep -q '^backuper-panel.service'; then
+        systemctl enable backuper-panel &> /dev/null || true
+        systemctl restart backuper-panel || { wrong "Failed to start backuper-panel.service"; return 1; }
+        success "Panel service started."
+        print "Open: http://$(hostname -I | awk '{print $1}'):8080"
+        return 0
+    fi
+
+    pkill -f backuper-panel.py &> /dev/null || true
+    nohup backuper-panel --port 8080 --no-auth &>> /root/.backuper_panel.log &
+    sleep 1
+    success "Panel started in the background (log: /root/.backuper_panel.log)."
+    print "Open: http://$(hostname -I | awk '{print $1}'):8080"
+    return 0
+}
+
 menu() {
     update_os
     install_dependencies
@@ -122,9 +222,10 @@ menu() {
         print ""
         print "1️) Install Backuper"
         print "2) Restore Backup"
-        print "3) Remove All Backupers"
+        print "3) Remove All Backups"
         print "4) Run All Backup Scripts"
-        print "5) Exit"
+        print "5) Web Panel"
+        print "6) Exit"
         print ""
         input "Choose an option:" choice
         case $choice in
@@ -149,6 +250,9 @@ menu() {
                 confirm
                 ;;
             5)
+                install_panel
+                ;;
+            6)
                 print "Thank you for using @ErfJabs script. Goodbye!"
                 exit 0
                 ;;
@@ -184,17 +288,24 @@ start_backup() {
 generate_remark() {
     clear
     print "[REMARK]\n"
+
+    if noni; then
+        REMARK="${BACKUPER_REMARK:-}"
+        validate_remark || error "Invalid backup remark: ${REMARK:-<empty>}"
+        if [[ -e "/root/_${REMARK}${SCRIPT_SUFFIX}" ]]; then
+            error "A backup with the remark '${REMARK}' already exists. Remove it first or choose another remark."
+        fi
+        success "Backup remark: $REMARK"
+        return 0
+    fi
+
     print "We need a remark for the backup file (e.g., Master, panel, ErfJab).\n"
 
     while true; do
         input "Enter a remark: " REMARK
 
-        if ! [[ "$REMARK" =~ ^[a-zA-Z0-9_]+$ ]]; then
-            wrong "Remark must contain only letters, numbers, or underscores."
-        elif [ ${#REMARK} -lt 3 ]; then
-            wrong "Remark must be at least 3 characters long."
-        elif [ -e "${REMARK}${SCRIPT_SUFFIX}" ]; then
-            wrong "File ${REMARK}${SCRIPT_SUFFIX} already exists. Choose a different remark."
+        if ! validate_remark; then
+            :
         else
             success "Backup remark: $REMARK"
             break
@@ -202,6 +313,21 @@ generate_remark() {
     done
     sleep 1
 }
+
+validate_remark() {
+    if ! [[ "$REMARK" =~ ^[a-zA-Z0-9_]+$ ]]; then
+        wrong "Remark must contain only letters, numbers, or underscores."
+        return 1
+    elif [ ${#REMARK} -lt 3 ]; then
+        wrong "Remark must be at least 3 characters long."
+        return 1
+    elif [ -e "${REMARK}${SCRIPT_SUFFIX}" ]; then
+        wrong "File ${REMARK}${SCRIPT_SUFFIX} already exists. Choose a different remark."
+        return 1
+    fi
+    return 0
+}
+
 
 generate_caption() {
     clear
@@ -221,9 +347,39 @@ generate_caption() {
     sleep 1
 }
 
+minutes_to_cron() {
+    local mins="$1"
+    if [ "$mins" -le 59 ]; then
+        echo "*/$mins * * * *"
+    elif [ "$mins" -le 1439 ]; then
+        local hours=$((mins / 60))
+        local remaining_minutes=$((mins % 60))
+        if [ "$remaining_minutes" -eq 0 ]; then
+            echo "0 */$hours * * *"
+        else
+            echo "*/$remaining_minutes */$hours * * *"
+        fi
+    else
+        echo "0 0 * * *"
+    fi
+}
+
 generate_timer() {
     clear
     print "[TIMER]\n"
+
+    if noni; then
+        minutes="${BACKUPER_TIMER:-}"
+        if ! [[ "$minutes" =~ ^[0-9]+$ ]]; then
+            error "Backup interval must be a number of minutes."
+        elif [ "$minutes" -lt 1 ] || [ "$minutes" -gt 1440 ]; then
+            error "Backup interval must be between 1 and 1440 minutes."
+        fi
+        TIMER="$(minutes_to_cron "$minutes")"
+        success "Cron job set to run every $minutes minutes: $TIMER"
+        return 0
+    fi
+
     print "Enter a time interval in minutes for sending backups."
     print "For example, '10' means backups will be sent every 10 minutes.\n"
 
@@ -239,21 +395,35 @@ generate_timer() {
         fi
     done
 
-    if [ "$minutes" -le 59 ]; then
-        TIMER="*/$minutes * * * *"
-    elif [ "$minutes" -le 1439 ]; then
-        hours=$((minutes / 60))
-        remaining_minutes=$((minutes % 60))
-        if [ "$remaining_minutes" -eq 0 ]; then
-            TIMER="0 */$hours * * *"
-        else
-            TIMER="*/$remaining_minutes */$hours * * *"
-        fi
-    else
-        TIMER="0 0 * * *" 
-    fi
+    TIMER="$(minutes_to_cron "$minutes")"
     success "Cron job set to run every $minutes minutes: $TIMER"
     sleep 1
+}
+
+
+apply_template() {
+    case "$1" in
+        1) xui_template ;;
+        2) sui_template ;;
+        3) hiddify_template ;;
+        4) remnawave_template ;;
+        5) rebecca_template ;;
+        6) marzneshin_template ;;
+        7) marzneshin_logs_template ;;
+        8) marzban_template ;;
+        9) marzban_logs_template ;;
+        10) mirzabot_template ;;
+        11) walpanel_template ;;
+        12) holderbot_template ;;
+        13) marzhelp_template ;;
+        14) phantom_template ;;
+        15) ovpanel_template ;;
+        16) ovnode_template ;;
+        17) marzgozir_template ;;
+        18) pasarguard_template ;;
+        0) return 0 ;;
+        *) return 1 ;;
+    esac
 }
 
 generate_template() {
@@ -280,90 +450,24 @@ generate_template() {
     print "18) PasarGuard"
     print "0) Custom"
     print ""
+
+    if noni; then
+        TEMPLATE="${BACKUPER_TEMPLATE:-0}"
+        if ! apply_template "$TEMPLATE"; then
+            error "Invalid template number: $TEMPLATE"
+        fi
+        return 0
+    fi
+
     while true; do
         input "Enter your template number: " TEMPLATE
-        case $TEMPLATE in
-            1)
-                xui_template
-                break
-                ;;
-            2)
-                sui_template
-                break
-                ;;
-            3)
-                hiddify_template
-                break
-                ;;
-            4)
-                remnawave_template
-                break
-                ;;
-            5)
-                rebecca_template
-                break
-                ;;
-            6)
-                marzneshin_template
-                break
-                ;;
-            7)
-                marzneshin_logs_template
-                break
-                ;;
-            8)
-                marzban_template
-                break
-                ;;
-            9)
-                marzban_logs_template
-                break
-                ;;
-            10)
-                mirzabot_template
-                break
-                ;;
-            11)
-                walpanel_template
-                break
-                ;;
-            12)
-                holderbot_template
-                break
-                ;;
-            13)
-                marzhelp_template
-                break
-                ;;
-            14)
-                phantom_template
-                break
-                ;;
-            15)
-                ovpanel_template
-                break
-                ;;
-            16)
-                ovnode_template
-                break
-                ;;
-            17)
-                marzgozir_template
-                break
-                ;;
-            18)
-                pasarguard_template
-                break
-                ;;
-            0)
-                break
-                ;;
-            *)
-                wrong "Invalid option. Please choose a valid number!"
-                ;;
-        esac
+        if apply_template "$TEMPLATE"; then
+            break
+        fi
+        wrong "Invalid option. Please choose a valid number!"
     done
 }
+
 
 add_directories() {
     local base_dir="$1"
@@ -394,6 +498,21 @@ add_directories() {
 }
 
 toggle_directories() {
+    if noni; then
+        local extra
+        if [ -n "${BACKUPER_DIRS_EXTRA:-}" ]; then
+            for extra in ${BACKUPER_DIRS_EXTRA}; do
+                if [ ! -e "$extra" ]; then
+                    error "Path does not exist: $extra"
+                fi
+                DIRECTORIES+=("$extra")
+                success "Added to list: $extra"
+            done
+        fi
+        BACKUP_DIRECTORIES="${DIRECTORIES[*]}"
+        return 0
+    fi
+
     clear
     print "[TOGGLE DIRECTORIES]\n"
     print "Enter directories to add or remove. Type 'done' when finished.\n"
@@ -421,6 +540,7 @@ toggle_directories() {
     done
     BACKUP_DIRECTORIES="${DIRECTORIES[*]}"
 }
+
 
 ovnode_template() {
     log "Checking OvNode configuration..."
@@ -1138,12 +1258,29 @@ hiddify_template() {
 }
 
 generate_password() {
+    COMPRESS="zip -9 -r"
+
+    if noni; then
+        PASSWORD="${BACKUPER_PASSWORD:-}"
+        if [ -n "$PASSWORD" ]; then
+            if [[ ! "$PASSWORD" =~ ^[a-zA-Z0-9]{8,}$ ]]; then
+                error "Password must be at least 8 characters long and contain only letters and numbers."
+            fi
+            COMPRESS="zip -9 -r -e -P $PASSWORD -s ${LIMITSIZE}m"
+            success "Archive password enabled."
+        else
+            PASSWORD=""
+            COMPRESS="zip -9 -r -s ${LIMITSIZE}m"
+            success "No password will be set for the archive."
+        fi
+        return 0
+    fi
+
     clear
     print "[PASSWORD PROTECTION]\n"
     print "You can set a password for the archive. The password must contain both letters and numbers, and be at least 8 characters long.\n"
     print "If you don't want a password, just press Enter.\n"
 
-    COMPRESS="zip -9 -r"
     while true; do
         input "Enter the password for the archive (or press Enter to skip): " PASSWORD
         
@@ -1172,7 +1309,29 @@ generate_password() {
     done
 }
 
+
 generate_platform() {
+    if noni; then
+        case "${BACKUPER_PLATFORM:-}" in
+            telegram)
+                PLATFORM="telegram"
+                telegram_progress
+                ;;
+            discord)
+                PLATFORM="discord"
+                discord_progress
+                ;;
+            gmail)
+                PLATFORM="gmail"
+                gmail_progress
+                ;;
+            *)
+                error "Invalid or missing platform. Use telegram, discord or gmail."
+                ;;
+        esac
+        return 0
+    fi
+
     clear
     print "[PLATFORM]\n"
     print "Select one platform to send your backup.\n"
@@ -1208,9 +1367,50 @@ generate_platform() {
     sleep 1
 }
 
+
+telegram_test_connection() {
+    local response
+    log "Checking Telegram bot..."
+    if [[ -n "${TOPIC_ID:-}" ]]; then
+        response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id="$CHAT_ID" -d message_thread_id="$TOPIC_ID" -d text="Hi, Backuper Test Message!")
+    else
+        response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id="$CHAT_ID" -d text="Hi, Backuper Test Message!")
+    fi
+    [[ "$response" -eq 200 ]]
+}
+
+telegram_finalize() {
+    if [[ -n "$TOPIC_ID" ]]; then
+        PLATFORM_COMMAND="curl -s -F \"chat_id=$CHAT_ID\" -F \"message_thread_id=$TOPIC_ID\" -F \"document=@\$FILE\" -F \"caption=\$CAPTION\" -F \"parse_mode=HTML\" \"https://api.telegram.org/bot$BOT_TOKEN/sendDocument\""
+    else
+        PLATFORM_COMMAND="curl -s -F \"chat_id=$CHAT_ID\" -F \"document=@\$FILE\" -F \"caption=\$CAPTION\" -F \"parse_mode=HTML\" \"https://api.telegram.org/bot$BOT_TOKEN/sendDocument\""
+    fi
+
+    CAPTION="
+📦 <b>From </b><code>\${ip}</code> [By <b><a href='https://t.me/erfjabs'>@ErfJabs</a></b>]
+<b>➖➖➖➖Sponsor➖➖➖➖</b>
+<a href='${SPONSORLINK}'>${SPONSORTEXT}</a>"
+    LIMITSIZE=49
+    success "Telegram configuration completed successfully."
+}
+
 telegram_progress() {
     clear
     print "[TELEGRAM]\n"
+
+    if noni; then
+        BOT_TOKEN="${BACKUPER_TG_TOKEN:-}"
+        CHAT_ID="${BACKUPER_TG_CHAT:-}"
+        TOPIC_ID="${BACKUPER_TG_TOPIC:-}"
+        [[ "$BOT_TOKEN" =~ ^[0-9]+:[a-zA-Z0-9_-]{35}$ ]] || error "Invalid Telegram bot token format."
+        [[ "$CHAT_ID" =~ ^-?[0-9]+$ ]] || error "Invalid Telegram chat ID format."
+        [[ -z "$TOPIC_ID" || "$TOPIC_ID" =~ ^[0-9]+$ ]] || error "Invalid Telegram topic ID."
+        telegram_test_connection || error "Telegram credentials are not valid. Check the bot token, chat ID and topic ID (and start the bot)."
+        success "Bot token and chat ID are valid."
+        telegram_finalize
+        return 0
+    fi
+
     print "To use Telegram, you need to provide a bot token and a chat ID.\n"
 
     while true; do
@@ -1252,41 +1452,46 @@ telegram_progress() {
             fi
         done
 
-        # Validate bot token and chat ID
-        log "Checking Telegram bot..."
-        if [[ -n "$TOPIC_ID" ]]; then
-            response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id="$CHAT_ID" -d message_thread_id="$TOPIC_ID" -d text="Hi, Backuper Test Message!")
-        else
-            response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" -d chat_id="$CHAT_ID" -d text="Hi, Backuper Test Message!")
-        fi
-        
-        if [[ "$response" -ne 200 ]]; then
-            wrong "Invalid bot token, chat ID, topic ID, or Telegram API error! [tip: start bot]"
-        else
+        if telegram_test_connection; then
             success "Bot token and chat ID are valid."
             break
+        else
+            wrong "Invalid bot token, chat ID, topic ID, or Telegram API error! [tip: start bot]"
         fi
     done
 
-    # Set the platform command for sending files
-    if [[ -n "$TOPIC_ID" ]]; then
-        PLATFORM_COMMAND="curl -s -F \"chat_id=$CHAT_ID\" -F \"message_thread_id=$TOPIC_ID\" -F \"document=@\$FILE\" -F \"caption=\$CAPTION\" -F \"parse_mode=HTML\" \"https://api.telegram.org/bot$BOT_TOKEN/sendDocument\""
-    else
-        PLATFORM_COMMAND="curl -s -F \"chat_id=$CHAT_ID\" -F \"document=@\$FILE\" -F \"caption=\$CAPTION\" -F \"parse_mode=HTML\" \"https://api.telegram.org/bot$BOT_TOKEN/sendDocument\""
-    fi
-    
-    CAPTION="
-📦 <b>From </b><code>\${ip}</code> [By <b><a href='https://t.me/erfjabs'>@ErfJabs</a></b>]
-<b>➖➖➖➖Sponsor➖➖➖➖</b>
-<a href='${SPONSORLINK}'>${SPONSORTEXT}</a>"
-    success "Telegram configuration completed successfully."
-    LIMITSIZE=49
+    telegram_finalize
     sleep 1
+}
+
+
+discord_test_connection() {
+    local response
+    log "Checking Discord Webhook..."
+    response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DISCORD_WEBHOOK" -H "Content-Type: application/json" -d '{"content": "Hi, Backuper Test Message!"}')
+    [[ "$response" -eq 204 ]]
+}
+
+discord_finalize() {
+    PLATFORM_COMMAND="curl -s -F \"file=@\$FILE\" -F \"payload_json={\\\"content\\\": \\\"\$CAPTION\\\"}\" \"$DISCORD_WEBHOOK\""
+    CAPTION="📦 **From** \`${ip}\` [by **[@ErfJabs](https://t.me/erfjabs)**]\n➖➖➖➖**Sponsor**➖➖➖➖\n[${SPONSORTEXT}](${SPONSORLINK})"
+    LIMITSIZE=24
+    success "Discord configuration completed successfully."
 }
 
 discord_progress() {
     clear
     print "[DISCORD]\n"
+
+    if noni; then
+        DISCORD_WEBHOOK="${BACKUPER_DISCORD_WEBHOOK:-}"
+        [[ "$DISCORD_WEBHOOK" =~ ^https://discord\.com/api/webhooks/ ]] || error "Invalid Discord webhook URL."
+        discord_test_connection || error "Discord webhook is not valid."
+        success "Webhook URL is valid."
+        discord_finalize
+        return 0
+    fi
+
     print "To use Discord, you need to provide a Webhook URL.\n"
 
     while true; do
@@ -1301,30 +1506,83 @@ discord_progress() {
                 break
             fi
         done
-        # Validate Webhook
-        log "Checking Discord Webhook..."
-        response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DISCORD_WEBHOOK" -H "Content-Type: application/json" -d '{"content": "Hi, Backuper Test Message!"}')
-        
-        if [[ "$response" -ne 204 ]]; then
-            wrong "Invalid Webhook URL or Discord API error!"
-        else
+
+        if discord_test_connection; then
             success "Webhook URL is valid."
             break
+        else
+            wrong "Invalid Webhook URL or Discord API error!"
         fi
     done
 
-    # Set the platform command for sending files
-    PLATFORM_COMMAND="curl -s -F \"file=@\$FILE\" -F \"payload_json={\\\"content\\\": \\\"\$CAPTION\\\"}\" \"$DISCORD_WEBHOOK\""
-    CAPTION="📦 **From** \`${ip}\` [by **[@ErfJabs](https://t.me/erfjabs)**]\n➖➖➖➖**Sponsor**➖➖➖➖\n[${SPONSORTEXT}](${SPONSORLINK})"
-    LIMITSIZE=24
-    success "Discord configuration completed successfully."
+    discord_finalize
     sleep 1
 }
 
 
+
+
+gmail_test_connection() {
+    log "Testing Gmail SMTP authentication..."
+    echo -e "Subject: Test Email\n\nThis is a test message." | msmtp \
+        --host=smtp.gmail.com \
+        --port=587 \
+        --tls=on \
+        --auth=on \
+        --user="$GMAIL_ADDRESS" \
+        --passwordeval="echo '$GMAIL_PASSWORD'" \
+        -f "$GMAIL_ADDRESS" \
+        "$GMAIL_ADDRESS"
+}
+
+gmail_finalize() {
+    cat > ~/.msmtprc <<EOF
+account gmail
+host smtp.gmail.com
+port 587
+auth on
+tls on
+tls_starttls on
+user $GMAIL_ADDRESS
+password $GMAIL_PASSWORD
+from $GMAIL_ADDRESS
+logfile ~/.msmtp.log
+account default : gmail
+EOF
+
+    chmod 600 ~/.msmtprc
+
+    cat > ~/.muttrc <<EOF
+set sendmail="/usr/bin/msmtp"
+set use_from=yes
+set realname="Backup System"
+set from="$GMAIL_ADDRESS"
+set envelope_from=yes
+EOF
+
+    chmod 600 ~/.muttrc
+    CAPTION="<html><body><p><b>📦 From </b><code>\${ip}</code> [by <b><a href='https://t.me/erfjabs'>@ErfJabs</a></b>]</p><p><b>➖➖➖➖Sponsor➖➖➖➖</b></p><p><a href='${SPONSORLINK}'>${SPONSORTEXT}</a></p></body></html>"
+    PLATFORM_COMMAND="echo \$CAPTION | mutt -e 'set content_type=text/html' -s 'Backuper' -a \"\$FILE\" -- \"$GMAIL_ADDRESS\""
+    LIMITSIZE=24
+    success "Gmail configuration completed successfully."
+}
+
 gmail_progress() {
     clear
     print "[GMAIL]\n"
+
+    if noni; then
+        GMAIL_ADDRESS="${BACKUPER_GMAIL_ADDRESS:-}"
+        GMAIL_PASSWORD="${BACKUPER_GMAIL_PASSWORD:-}"
+        GMAIL_PASSWORD="${GMAIL_PASSWORD// /}"
+        [[ "$GMAIL_ADDRESS" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]] || error "Invalid Gmail address."
+        [[ -n "$GMAIL_PASSWORD" ]] || error "Gmail app password is required."
+        gmail_test_connection || error "Gmail authentication failed. Check the address and the app password."
+        success "Authentication successful! Configuring msmtp and mutt..."
+        gmail_finalize
+        return 0
+    fi
+
     print "To use Gmail, you need to provide your email and an app password.\n"
     print "🔴 Do NOT use your real password! Generate an 'App Password' from Google settings.\n"
 
@@ -1349,49 +1607,9 @@ gmail_progress() {
             fi
         done
 
-        log "Testing Gmail SMTP authentication..."
-
-        echo -e "Subject: Test Email\n\nThis is a test message." | msmtp \
-            --host=smtp.gmail.com \
-            --port=587 \
-            --tls=on \
-            --auth=on \
-            --user="$GMAIL_ADDRESS" \
-            --passwordeval="echo '$GMAIL_PASSWORD'" \
-            -f "$GMAIL_ADDRESS" \
-            "$GMAIL_ADDRESS"
-
-        if [[ $? -eq 0 ]]; then
+        if gmail_test_connection; then
             success "Authentication successful! Configuring msmtp and mutt..."
-
-            cat > ~/.msmtprc <<EOF
-account gmail
-host smtp.gmail.com
-port 587
-auth on
-tls on
-tls_starttls on
-user $GMAIL_ADDRESS
-password $GMAIL_PASSWORD
-from $GMAIL_ADDRESS
-logfile ~/.msmtp.log
-account default : gmail
-EOF
-
-            chmod 600 ~/.msmtprc  
-
-            cat > ~/.muttrc <<EOF
-set sendmail="/usr/bin/msmtp"
-set use_from=yes
-set realname="Backup System"
-set from="$GMAIL_ADDRESS"
-set envelope_from=yes
-EOF
-
-            chmod 600 ~/.muttrc
-            CAPTION="<html><body><p><b>📦 From </b><code>\${ip}</code> [by <b><a href='https://t.me/erfjabs'>@ErfJabs</a></b>]</p><p><b>➖➖➖➖Sponsor➖➖➖➖</b></p><p><a href='${SPONSORLINK}'>${SPONSORTEXT}</a></p></body></html>"
-            PLATFORM_COMMAND="echo \$CAPTION | mutt -e 'set content_type=text/html' -s 'Backuper' -a \"\$FILE\" -- \"$GMAIL_ADDRESS\""
-            LIMITSIZE=24
+            gmail_finalize
             break
         else
             wrong "Authentication failed! Check your email or app password and try again."
@@ -1402,6 +1620,8 @@ EOF
 
     sleep 1
 }
+
+
 
 
 ###############################################################################
@@ -1500,6 +1720,20 @@ restore_override_source() {
 
 restore_choose_source() {
     local states=() choice="" i=1 f remark platform
+
+    if noni; then
+        REMARK="${BACKUPER_RESTORE_REMARK:-}"
+        if [ -n "$REMARK" ] && [ -f "$(restore_state_file "$REMARK")" ]; then
+            # shellcheck disable=SC1090
+            source "$(restore_state_file "$REMARK")" || true
+            REMARK="${BACKUPER_RESTORE_REMARK:-$REMARK}"
+        fi
+        [ -n "${BACKUPER_RESTORE_PLATFORM:-}" ] && PLATFORM="$BACKUPER_RESTORE_PLATFORM"
+        if [ -z "$PLATFORM" ]; then
+            error "Restore source is required (BACKUPER_RESTORE_PLATFORM = telegram, discord, gmail or local)."
+        fi
+        return 0
+    fi
     mapfile -t states < <(find /root -maxdepth 1 -type f -name '.backuper_*.conf' 2>/dev/null | sort)
 
     if [[ ${#states[@]} -gt 0 ]]; then
@@ -1714,6 +1948,32 @@ restore_telegram_manual_file() {
     # Ask the user for a message link or a file_id + file name
     local answer="" from="" msg="" name="" file_id="" resp=""
 
+    if noni; then
+        answer="${BACKUPER_RESTORE_MSG:-}"
+        if [ -z "$answer" ]; then
+            error "Telegram message link or file id is required (BACKUPER_RESTORE_MSG)."
+        fi
+        if [[ "$answer" =~ ^https?://t\.me/(.+)/([0-9]+)$ ]]; then
+            local chat_part="${BASH_REMATCH[1]}"
+            msg="${BASH_REMATCH[2]}"
+            if [[ "$chat_part" == c/* ]]; then
+                from="-100${chat_part#c/}"
+            else
+                from="@${chat_part}"
+            fi
+            resp=$(curl -s --max-time 60 "https://api.telegram.org/bot${TG_TOKEN}/forwardMessage" \
+                -d chat_id="$TG_CHAT" -d from_chat_id="$from" -d message_id="$msg" 2>/dev/null) || resp=""
+            printf '%s' "$resp" | restore_parse_telegram_docs | restore_filter_backup_files "$REMARK" > "$RESTORE_DIR/docs.txt" 2>/dev/null || true
+        else
+            name=$(basename "${answer##*:}")
+            printf '%s\t%s\n' "$name" "$answer" >> "$RESTORE_DIR/docs.txt"
+        fi
+        if [ ! -s "$RESTORE_DIR/docs.txt" ]; then
+            error "Could not resolve the Telegram message. Check the link/id and the bot permissions."
+        fi
+        return 0
+    fi
+
     print ""
     print "Paste one of the following:"
     print "  • A Telegram message link (https://t.me/c/<chat>/<message>)"
@@ -1770,7 +2030,11 @@ restore_telegram_manual_file() {
 }
 
 restore_fetch_telegram() {
-    local token="$TG_TOKEN" chat="$TG_CHAT" topic="$TG_TOPIC"
+    local token="${TG_TOKEN:-${BACKUPER_TG_TOKEN:-}}" chat="${TG_CHAT:-${BACKUPER_TG_CHAT:-}}" topic="${TG_TOPIC:-${BACKUPER_TG_TOPIC:-}}"
+
+    if noni && [[ -z "$token" || -z "$chat" ]]; then
+        error "Telegram token and chat ID are required (BACKUPER_TG_TOKEN / BACKUPER_TG_CHAT)."
+    fi
 
     if [[ -z "$token" || -z "$chat" ]]; then
         print ""
@@ -1873,7 +2137,11 @@ restore_parse_discord_attachments() {
 }
 
 restore_discord_credentials() {
-    local webhook="$DISCORD_WEBHOOK"
+    local webhook="${DISCORD_WEBHOOK:-${BACKUPER_DISCORD_WEBHOOK:-}}"
+
+    if noni && [[ -z "$webhook" ]]; then
+        error "Discord webhook URL is required (BACKUPER_DISCORD_WEBHOOK)."
+    fi
 
     if [[ -z "$webhook" ]]; then
         print ""
@@ -1984,7 +2252,11 @@ restore_gmail_extract_attachments() {
 }
 
 restore_fetch_gmail() {
-    local address="$GMAIL_ADDRESS" password="$GMAIL_PASSWORD"
+    local address="${GMAIL_ADDRESS:-${BACKUPER_GMAIL_ADDRESS:-}}" password="${GMAIL_PASSWORD:-${BACKUPER_GMAIL_PASSWORD:-}}"
+
+    if noni && [[ -z "$address" || -z "$password" ]]; then
+        error "Gmail address and app password are required (BACKUPER_GMAIL_ADDRESS / BACKUPER_GMAIL_PASSWORD)."
+    fi
 
     if [[ -z "$address" || -z "$password" ]]; then
         print ""
@@ -2080,6 +2352,40 @@ restore_fetch_gmail() {
 
 restore_fetch_local() {
     local path="" choice=""
+
+    if noni; then
+        path="${BACKUPER_RESTORE_PATH:-}"
+        if [ -z "$path" ]; then
+            error "Archive path is required (BACKUPER_RESTORE_PATH)."
+        fi
+        if [ ! -e "$path" ]; then
+            error "Path does not exist: $path"
+        fi
+        if [ -d "$path" ]; then
+            local afiles=()
+            while IFS= read -r f; do afiles+=("$f"); done < <(find "$path" -maxdepth 1 -type f \( -name "*${TAG}zip" -o -name "*${TAG}z[0-9][0-9]" \) | sort)
+            if [ ${#afiles[@]} -eq 0 ]; then
+                error "No Backuper archive was found in: $path"
+            fi
+            ARCHIVE_FILES=("${afiles[@]}")
+        elif [[ "$path" == *.z[0-9][0-9] ]]; then
+            local lbase
+            lbase="$(dirname "$path")/$(basename "${path%.z*}")"
+            while IFS= read -r f; do ARCHIVE_FILES+=("$f"); done < <(find "$(dirname "$path")" -maxdepth 1 -type f \( -name "$(basename "$lbase").z[0-9][0-9]" -o -name "$(basename "$lbase").zip" \) | sort)
+        else
+            ARCHIVE_FILES=("$path")
+        fi
+
+        local lf
+        for lf in "${ARCHIVE_FILES[@]}"; do
+            cp -f "$lf" "$RESTORE_DIR/" || error "Failed to copy: $lf"
+        done
+        local lcopies=()
+        while IFS= read -r lf; do lcopies+=("$lf"); done < <(find "$RESTORE_DIR" -maxdepth 1 -type f | sort)
+        ARCHIVE_FILES=("${lcopies[@]}")
+        success "Using archive part(s) from: $path"
+        return 0
+    fi
 
     print ""
     print "[LOCAL FILE]"
@@ -2191,6 +2497,10 @@ restore_prepare_zip() {
             print ""
             print "This archive is password protected."
             local tries=0
+            ZIP_PASSWORD="${BACKUPER_ZIP_PASSWORD:-$ZIP_PASSWORD}"
+            if noni && [ -z "$ZIP_PASSWORD" ]; then
+                error "This archive is password protected. Provide the password (BACKUPER_ZIP_PASSWORD)."
+            fi
             if [[ -n "$ZIP_PASSWORD" ]]; then
                 if unzip -t -P "$ZIP_PASSWORD" "$RESTORE_ZIP" > /dev/null 2>&1; then
                     UNZIP_ARGS=(-P "$ZIP_PASSWORD")
@@ -2238,10 +2548,14 @@ restore_apply() {
     print ""
 
     local answer=""
-    input "Type 'yes' to continue with the restore: " answer
-    if [[ "$answer" != "yes" ]]; then
-        warn "Restore cancelled."
-        return 1
+    if [ "${BACKUPER_RESTORE_YES:-}" = "1" ] || [ "${BACKUPER_RESTORE_YES:-}" = "yes" ]; then
+        log "Restore confirmed (non-interactive mode)."
+    else
+        input "Type 'yes' to continue with the restore: " answer
+        if [[ "$answer" != "yes" ]]; then
+            warn "Restore cancelled."
+            return 1
+        fi
     fi
 
     # Safety copy of the files that will be overwritten
@@ -2263,8 +2577,12 @@ restore_apply() {
             success "Safety copy created: $snapshot"
         else
             warn "Could not create a safety copy."
-            input "Continue anyway? (yes/no): " answer
-            [[ "$answer" == "yes" ]] || return 1
+            if [ "${BACKUPER_RESTORE_YES:-}" = "1" ] || [ "${BACKUPER_RESTORE_YES:-}" = "yes" ]; then
+                warn "Continuing without a safety copy."
+            else
+                input "Continue anyway? (yes/no): " answer
+                [[ "$answer" == "yes" ]] || return 1
+            fi
         fi
     fi
 
@@ -2456,12 +2774,18 @@ restore_import_database() {
     local f
     for f in "${dumps[@]}"; do print "  - $f"; done
 
+    local db_choice="${BACKUPER_RESTORE_DB:-}"
+
     if [[ -n "$RESTORE_DB_COMMAND" ]]; then
         print ""
         print "Saved database restore command:"
         print "${COLORS[orange]}  $RESTORE_DB_COMMAND${COLORS[reset]}"
         print ""
-        input "Restore the database now? (yes/no): " answer
+        if [[ -n "$db_choice" ]]; then
+            answer="$db_choice"
+        else
+            input "Restore the database now? (yes/no): " answer
+        fi
         if [[ "$answer" == "yes" ]]; then
             if eval "$RESTORE_DB_COMMAND"; then
                 success "Database restored successfully."
@@ -2476,7 +2800,14 @@ restore_import_database() {
         return 0
     fi
 
-    input "Restore the database manually now? (yes/no): " answer
+    if [[ -n "$db_choice" ]]; then
+        answer="$db_choice"
+    elif noni; then
+        answer="no"
+        warn "No saved database restore command. Set BACKUPER_RESTORE_DB=yes to import it manually."
+    else
+        input "Restore the database manually now? (yes/no): " answer
+    fi
     if [[ "$answer" == "yes" ]]; then
         restore_import_database_manual "${dumps[@]}"
     else
@@ -2497,7 +2828,13 @@ restore_restart_services() {
     if [[ -z "$(docker ps -q 2>/dev/null)" ]]; then
         return 0
     fi
-    input "Restart all running docker containers now? (yes/no): " answer
+    if [[ -n "${BACKUPER_RESTORE_RESTART:-}" ]]; then
+        answer="$BACKUPER_RESTORE_RESTART"
+    elif noni; then
+        answer="no"
+    else
+        input "Restart all running docker containers now? (yes/no): " answer
+    fi
     if [[ "$answer" == "yes" ]]; then
         local ids=()
         mapfile -t ids < <(docker ps -q 2>/dev/null)
@@ -2580,6 +2917,7 @@ generate_script() {
 set -e 
 
 # Variables
+echo "===== \$(TZ='Asia/Tehran' date '+%Y-%m-%d %H:%M') ====="
 ip=\$(hostname -I | awk '{print \$1}')
 timestamp=\$(TZ='Asia/Tehran' date +%m%d-%H%M)
 CAPTION="${CAPTION}"
@@ -2673,7 +3011,8 @@ EOL
         
         # Set up cron job
         log "Setting up cron job..."
-        if (crontab -l 2>/dev/null; echo "$TIMER $BACKUP_PATH") | crontab -; then
+        RUN_LOG="/root/.backuper_${REMARK}_run.log"
+        if (crontab -l 2>/dev/null; echo "$TIMER $BACKUP_PATH >> $RUN_LOG 2>&1") | crontab -; then
             success "Cron job set up successfully. Backups will run every $minutes minutes."
         else
             error "Failed to set up cron job. Set it up manually: $TIMER $BACKUP_PATH"
@@ -2708,6 +3047,13 @@ main() {
             exit 0
             ;;
         install|--install|-i)
+            if noni; then
+                # Non-interactive install (used by the web panel)
+                install_dependencies
+                install_yq
+                start_backup
+                exit 0
+            fi
             menu
             exit 0
             ;;
