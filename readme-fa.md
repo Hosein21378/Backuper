@@ -53,11 +53,7 @@ sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/ma
 ```
 
 در پایان آدرس پنل، نام کاربری و رمز ساخته‌شده را چاپ می‌کند و پیشنهاد می‌دهد همان‌جا
-اولین بکاپ را بسازید. بعد از نصب، همه‌چیز با یک دستور در دسترس است:
-
-```bash
-sudo pasarguard-backup          # منو: ساخت بکاپ / بازگردانی / پنل
-```
+اولین بکاپ را بسازید. بعد از نصب، همه‌چیز از منو در دسترس است: `sudo pasarguard-backup`.
 
 ### گزینه‌های نصب‌کننده
 
@@ -74,33 +70,23 @@ sudo pasarguard-backup          # منو: ساخت بکاپ / بازگردانی
 
 منویی که پس از نصب می‌آید:
 
-```
-======== PasarGuard Backup Menu [v1.0.0] ========
-
-1) Install / Create Backup
-2) Restore Backup
-3) Remove All Backups
-4) Run All Backup Scripts
-5) Web Panel
-6) Exit
-```
+| گزینهٔ منو | کار |
+|---|---|
+| `1) Install / Create Backup` | ساخت بکاپ زمان‌بندی‌شده |
+| `2) Restore Backup` | بازگردانی از تلگرام / دیسکورد / جیمیل / فایل محلی |
+| `3) Remove All Backups` | حذف اسکریپت‌ها، کران‌جاب‌ها و تنظیمات |
+| `4) Run All Backup Scripts` | اجرای فوری همه‌ی بکاپ‌ها |
+| `5) Web Panel` | نصب / اجرای پنل وب |
+| `6) Exit` | خروج |
 
 برای پاسارگارد: گزینه‌ی `1) Install / Create Backup` و بعد قالب **18) PasarGuard** را انتخاب کنید؛
 اطلاعات دیتابیس خودکار از `/opt/pasarguard/.env` خوانده می‌شود.
 
 ## بازگردانی بکاپ
 
-گزینه‌ی `2) Restore Backup` در منو، یا مستقیم:
-
-```bash
-sudo pasarguard-backup restore
-```
-
-روی سروری که هنوز چیزی نصب نشده هم همان یک دستور کافی است (بدون مرحله‌ی نصب):
-
-```bash
-sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/install.sh)" restore
-```
+گزینه‌ی `2) Restore Backup` در منو، یا `sudo pasarguard-backup restore`.
+روی سروری که هنوز چیزی نصب نشده، همان دستور نصب با کلمهٔ ` restore` در انتها کافی است
+(مرحله‌ی نصب جدا لازم نیست).
 
 بازگردانی چه می‌کند؟
 
@@ -117,11 +103,7 @@ sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/ma
 ## پنل وب
 
 پنل وب بخشی از همان یک دستور نصب بالاست و جداگانه نصب نمی‌خواهد. اگر جایی فقط پنل را
-می‌خواهید (موتور از قبل نصب است):
-
-```bash
-sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/install.sh)" -- --panel-only
-```
+می‌خواهید (موتور از قبل نصب است)، به همان دستور `--panel-only` اضافه کنید.
 
 نصب‌کننده آدرس پنل، نام کاربری و رمز ساخته‌شده را چاپ می‌کند. از منو هم: `5) Web Panel`.
 
@@ -137,29 +119,23 @@ sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/ma
 
 ## اتوماسیون (حالت غیرتعاملی)
 
-```bash
-BACKUPER_NONINTERACTIVE=1 \
-BACKUPER_REMARK=pasarguard BACKUPER_TEMPLATE=18 BACKUPER_TIMER=360 \
-BACKUPER_PLATFORM=telegram BACKUPER_TG_TOKEN="..." BACKUPER_TG_CHAT="..." \
-BACKUPER_DIRS_EXTRA="/opt/pasarguard /var/lib/pasarguard" \
-bash pasarguard-backup.sh install
-
-BACKUPER_NONINTERACTIVE=1 \
-BACKUPER_RESTORE_PLATFORM=telegram BACKUPER_RESTORE_REMARK=pasarguard \
-BACKUPER_RESTORE_YES=1 BACKUPER_RESTORE_DB=yes \
-bash pasarguard-backup.sh restore
-```
-
-همه‌ی متغیرها در ابتدای فایل `pasarguard-backup.sh` توضیح داده شده‌اند.
+با `BACKUPER_NONINTERACTIVE=1` ویزارد بدون هیچ سؤالی اجرا می‌شود — پنل وب هم از همین حالت
+استفاده می‌کند. متغیرهای بکاپ: `BACKUPER_REMARK`، `BACKUPER_TEMPLATE`، `BACKUPER_TIMER`،
+`BACKUPER_PLATFORM`، `BACKUPER_TG_TOKEN`، `BACKUPER_TG_CHAT`، `BACKUPER_DISCORD_WEBHOOK`،
+`BACKUPER_GMAIL_*`، `BACKUPER_ARCHIVE_PASSWORD` و `BACKUPER_DIRS_EXTRA`.
+متغیرهای بازگردانی: `BACKUPER_RESTORE_PLATFORM`، `BACKUPER_RESTORE_REMARK`،
+`BACKUPER_RESTORE_MSG`، `BACKUPER_RESTORE_PATH`، `BACKUPER_RESTORE_YES`،
+`BACKUPER_RESTORE_DB` و `BACKUPER_RESTORE_RESTART`. همه در ابتدای فایل
+`pasarguard-backup.sh` توضیح داده شده‌اند.
 
 ## ساختار پروژه
 
-```
-install.sh                      نصب‌کننده‌ی یک‌خطی (موتور + پنل)
-pasarguard-backup.sh            موتور بکاپ و بازگردانی (یک فایل)
-panel/pasarguard-panel.py       پنل وب (فقط کتابخانه‌های استاندارد)
-panel/install.sh                نصب‌کننده‌ی پنل (systemd + رمز عبور)
-```
+| فایل | چیست |
+|---|---|
+| `install.sh` | نصب‌کننده‌ی یک‌خطی (موتور + پنل) |
+| `pasarguard-backup.sh` | موتور بکاپ و بازگردانی (یک فایل) |
+| `panel/pasarguard-panel.py` | پنل وب (فقط کتابخانه‌های استاندارد) |
+| `panel/install.sh` | نصب‌کننده‌ی پنل (systemd + رمز عبور) |
 
 ## تغییر برند
 
