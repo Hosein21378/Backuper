@@ -46,35 +46,47 @@
 
 ## نصب
 
-اسکریپت را با دسترسی root روی سرور اجرا کنید:
+**فقط یک دستور** — هم موتور بکاپ نصب می‌شود، هم پنل وب:
 
 ```bash
-sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/pasarguard-backup.sh)"
+sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/install.sh)"
 ```
 
-سپس از منو:
+در پایان آدرس پنل، نام کاربری و رمز ساخته‌شده را چاپ می‌کند و پیشنهاد می‌دهد همان‌جا
+اولین بکاپ را بسازید. بعد از نصب، همه‌چیز از منو در دسترس است: `sudo pasarguard-backup`.
 
-```
-======== PasarGuard Backup Menu [v1.0.0] ========
+### گزینه‌های نصب‌کننده
 
-1) Install / Create Backup
-2) Restore Backup
-3) Remove All Backups
-4) Run All Backup Scripts
-5) Web Panel
-6) Exit
-```
+| گزینه | کار |
+|--------|-----|
+| *(بدون گزینه)* | موتور + پنل وب + راهنمای اولین بکاپ |
+| `--no-panel` | فقط موتور بکاپ |
+| `--panel-only` | فقط پنل وب |
+| `--port N` | پورت پنل (پیش‌فرض `8080`) |
+| `--yes` / `-y` | بدون پرسیدن برای ساخت اولین بکاپ |
+| `--uninstall` | حذف پنل (بکاپ‌ها دست‌نخورده می‌مانند) |
+| `restore` | اجرای ویزارد بازگردانی |
+| `--help` | نمایش راهنما |
+
+منویی که پس از نصب می‌آید:
+
+| گزینهٔ منو | کار |
+|---|---|
+| `1) Install / Create Backup` | ساخت بکاپ زمان‌بندی‌شده |
+| `2) Restore Backup` | بازگردانی از تلگرام / دیسکورد / جیمیل / فایل محلی |
+| `3) Remove All Backups` | حذف اسکریپت‌ها، کران‌جاب‌ها و تنظیمات |
+| `4) Run All Backup Scripts` | اجرای فوری همه‌ی بکاپ‌ها |
+| `5) Web Panel` | نصب / اجرای پنل وب |
+| `6) Exit` | خروج |
 
 برای پاسارگارد: گزینه‌ی `1) Install / Create Backup` و بعد قالب **18) PasarGuard** را انتخاب کنید؛
 اطلاعات دیتابیس خودکار از `/opt/pasarguard/.env` خوانده می‌شود.
 
 ## بازگردانی بکاپ
 
-گزینه‌ی `2) Restore Backup` در منو، یا مستقیم:
-
-```bash
-sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/pasarguard-backup.sh) restore"
-```
+گزینه‌ی `2) Restore Backup` در منو، یا `sudo pasarguard-backup restore`.
+روی سروری که هنوز چیزی نصب نشده، همان دستور نصب با کلمهٔ ` restore` در انتها کافی است
+(مرحله‌ی نصب جدا لازم نیست).
 
 بازگردانی چه می‌کند؟
 
@@ -90,9 +102,8 @@ sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/ma
 
 ## پنل وب
 
-```bash
-sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/panel/install.sh)"
-```
+پنل وب بخشی از همان یک دستور نصب بالاست و جداگانه نصب نمی‌خواهد. اگر جایی فقط پنل را
+می‌خواهید (موتور از قبل نصب است)، به همان دستور `--panel-only` اضافه کنید.
 
 نصب‌کننده آدرس پنل، نام کاربری و رمز ساخته‌شده را چاپ می‌کند. از منو هم: `5) Web Panel`.
 
@@ -108,34 +119,30 @@ sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/ma
 
 ## اتوماسیون (حالت غیرتعاملی)
 
-```bash
-BACKUPER_NONINTERACTIVE=1 \
-BACKUPER_REMARK=pasarguard BACKUPER_TEMPLATE=18 BACKUPER_TIMER=360 \
-BACKUPER_PLATFORM=telegram BACKUPER_TG_TOKEN="..." BACKUPER_TG_CHAT="..." \
-BACKUPER_DIRS_EXTRA="/opt/pasarguard /var/lib/pasarguard" \
-bash pasarguard-backup.sh install
-
-BACKUPER_NONINTERACTIVE=1 \
-BACKUPER_RESTORE_PLATFORM=telegram BACKUPER_RESTORE_REMARK=pasarguard \
-BACKUPER_RESTORE_YES=1 BACKUPER_RESTORE_DB=yes \
-bash pasarguard-backup.sh restore
-```
-
-همه‌ی متغیرها در ابتدای فایل `pasarguard-backup.sh` توضیح داده شده‌اند.
+با `BACKUPER_NONINTERACTIVE=1` ویزارد بدون هیچ سؤالی اجرا می‌شود — پنل وب هم از همین حالت
+استفاده می‌کند. متغیرهای بکاپ: `BACKUPER_REMARK`، `BACKUPER_TEMPLATE`، `BACKUPER_TIMER`،
+`BACKUPER_PLATFORM`، `BACKUPER_TG_TOKEN`، `BACKUPER_TG_CHAT`، `BACKUPER_DISCORD_WEBHOOK`،
+`BACKUPER_GMAIL_*`، `BACKUPER_ARCHIVE_PASSWORD` و `BACKUPER_DIRS_EXTRA`.
+متغیرهای بازگردانی: `BACKUPER_RESTORE_PLATFORM`، `BACKUPER_RESTORE_REMARK`،
+`BACKUPER_RESTORE_MSG`، `BACKUPER_RESTORE_PATH`، `BACKUPER_RESTORE_YES`،
+`BACKUPER_RESTORE_DB` و `BACKUPER_RESTORE_RESTART`. همه در ابتدای فایل
+`pasarguard-backup.sh` توضیح داده شده‌اند.
 
 ## ساختار پروژه
 
-```
-pasarguard-backup.sh            موتور بکاپ و بازگردانی (یک فایل)
-panel/pasarguard-panel.py       پنل وب (فقط کتابخانه‌های استاندارد)
-panel/install.sh                نصب‌کننده‌ی پنل (systemd + رمز عبور)
-```
+| فایل | چیست |
+|---|---|
+| `install.sh` | نصب‌کننده‌ی یک‌خطی (موتور + پنل) |
+| `pasarguard-backup.sh` | موتور بکاپ و بازگردانی (یک فایل) |
+| `panel/pasarguard-panel.py` | پنل وب (فقط کتابخانه‌های استاندارد) |
+| `panel/install.sh` | نصب‌کننده‌ی پنل (systemd + رمز عبور) |
 
 ## تغییر برند
 
 - `pasarguard-backup.sh` → `PROJECT_NAME`، `PROJECT_OWNER`، `PROJECT_OWNER_LINK`، `GITHUB_REPO`، `REPO_BRANCH`، `REPO_RAW`، `VERSION`
 - `panel/pasarguard-panel.py` → `PRODUCT_NAME`، `PRODUCT_NAME_FA`، `REPO_URL`، `VERSION`
 - `panel/install.sh` → `REPO_RAW`، `REPO_URL`
+- `install.sh` → `REPO_RAW`، `REPO_URL`
 
 ## اعتبارها
 

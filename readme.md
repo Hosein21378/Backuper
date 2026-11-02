@@ -59,24 +59,38 @@ built-in web panel.
 
 ## Installation
 
-Run the script on your server as root:
+One command installs everything — the backup engine **and** the web panel:
 
 ```bash
-sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/pasarguard-backup.sh)"
+sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/install.sh)"
 ```
 
-Then pick an option from the menu:
+It prints the panel URL, the user and the generated password, and then offers to create
+your first backup right away. After that everything runs from the menu: `sudo pasarguard-backup`.
 
-```
-======== PasarGuard Backup Menu [v1.0.0] ========
+### Installer options
 
-1) Install / Create Backup
-2) Restore Backup
-3) Remove All Backups
-4) Run All Backup Scripts
-5) Web Panel
-6) Exit
-```
+| Flag | What it does |
+|------|--------------|
+| *(none)* | engine + web panel + first-backup wizard |
+| `--no-panel` | engine only |
+| `--panel-only` | web panel only |
+| `--port N` | panel port (default `8080`) |
+| `--yes` / `-y` | install without asking to create the first backup |
+| `--uninstall` | remove the panel (backups are untouched) |
+| `restore` | open the restore wizard |
+| `--help` | show the built-in help |
+
+The menu you get after installing:
+
+| Menu entry | What it does |
+|---|---|
+| `1) Install / Create Backup` | new scheduled backup |
+| `2) Restore Backup` | restore from Telegram / Discord / Gmail / local file |
+| `3) Remove All Backups` | delete the scripts, cron jobs and configs |
+| `4) Run All Backup Scripts` | run every installed backup now |
+| `5) Web Panel` | install / start the web panel |
+| `6) Exit` | leave the menu |
 
 For PasarGuard: choose `1) Install / Create Backup`, pick template **18) PasarGuard**, and enter
 your Telegram / Discord / Gmail destination. The database credentials are read from
@@ -84,11 +98,9 @@ your Telegram / Discord / Gmail destination. The database credentials are read f
 
 ## Restoring a Backup
 
-Choose `2) Restore Backup`, or run the restore flow directly:
-
-```bash
-sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/pasarguard-backup.sh) restore"
-```
+Choose `2) Restore Backup` in the menu, or run `sudo pasarguard-backup restore`.
+On a server where nothing is installed yet, the same install command with ` restore` at the end
+does it (no install step needed).
 
 What the restore does:
 
@@ -106,11 +118,11 @@ What the restore does:
 ## Web Panel
 
 A small, dependency-free web panel ships with the project. It is a thin UI over the same
-`pasarguard-backup.sh`, so nothing about your backups changes.
+`pasarguard-backup.sh`, so nothing about your backups changes. The one-line installer above
+already sets it up — the panel is part of the same command.
 
-```bash
-sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/panel/install.sh)"
-```
+Need the panel only (on a machine that already has the engine)? Add `--panel-only` to the
+same command.
 
 The installer prints the panel URL, the user and the generated password.
 You can also install it from the menu: `5) Web Panel`.
@@ -129,34 +141,30 @@ Details:
 
 ## Automation (non-interactive mode)
 
-```bash
-BACKUPER_NONINTERACTIVE=1 \
-BACKUPER_REMARK=pasarguard BACKUPER_TEMPLATE=18 BACKUPER_TIMER=360 \
-BACKUPER_PLATFORM=telegram BACKUPER_TG_TOKEN="..." BACKUPER_TG_CHAT="..." \
-BACKUPER_DIRS_EXTRA="/opt/pasarguard /var/lib/pasarguard" \
-bash pasarguard-backup.sh install
-
-BACKUPER_NONINTERACTIVE=1 \
-BACKUPER_RESTORE_PLATFORM=telegram BACKUPER_RESTORE_REMARK=pasarguard \
-BACKUPER_RESTORE_YES=1 BACKUPER_RESTORE_DB=yes \
-bash pasarguard-backup.sh restore
-```
-
-All variables are documented at the top of `pasarguard-backup.sh`.
+Set `BACKUPER_NONINTERACTIVE=1` and the wizard runs without questions — the web panel uses the
+same mode. The variables you can pass are `BACKUPER_REMARK`, `BACKUPER_TEMPLATE`,
+`BACKUPER_TIMER`, `BACKUPER_PLATFORM`, `BACKUPER_TG_TOKEN`, `BACKUPER_TG_CHAT`,
+`BACKUPER_DISCORD_WEBHOOK`, `BACKUPER_GMAIL_*`, `BACKUPER_ARCHIVE_PASSWORD` and
+`BACKUPER_DIRS_EXTRA` for a backup, plus `BACKUPER_RESTORE_PLATFORM`, `BACKUPER_RESTORE_REMARK`,
+`BACKUPER_RESTORE_MSG`, `BACKUPER_RESTORE_PATH`, `BACKUPER_RESTORE_YES`,
+`BACKUPER_RESTORE_DB` and `BACKUPER_RESTORE_RESTART` for a restore.
+All of them are documented at the top of `pasarguard-backup.sh`.
 
 ## Project layout
 
-```
-pasarguard-backup.sh            the whole backup / restore engine (single file)
-panel/pasarguard-panel.py       web panel (stdlib only)
-panel/install.sh                panel installer (systemd + credentials)
-```
+| File | What it is |
+|---|---|
+| `install.sh` | the one-line installer (engine + panel) |
+| `pasarguard-backup.sh` | the whole backup / restore engine (single file) |
+| `panel/pasarguard-panel.py` | web panel (stdlib only) |
+| `panel/install.sh` | panel installer (systemd + credentials) |
 
 ## Changing the branding
 
 - `pasarguard-backup.sh` → `PROJECT_NAME`, `PROJECT_OWNER`, `PROJECT_OWNER_LINK`, `GITHUB_REPO`, `REPO_BRANCH`, `REPO_RAW`, `VERSION`
 - `panel/pasarguard-panel.py` → `PRODUCT_NAME`, `PRODUCT_NAME_FA`, `REPO_URL`, `VERSION`
 - `panel/install.sh` → `REPO_RAW`, `REPO_URL`
+- `install.sh` → `REPO_RAW`, `REPO_URL`
 
 ## Credits
 
