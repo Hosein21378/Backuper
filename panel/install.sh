@@ -5,6 +5,7 @@
 #   sudo bash panel/install.sh                 # install and start
 #   sudo bash panel/install.sh --port 9000     # custom port
 #   sudo bash panel/install.sh --uninstall
+#   sudo bash panel/install.sh --quiet        # no final banner (used by install.sh)
 #
 set -e
 
@@ -28,6 +29,7 @@ die()  { echo -e "${RED}[ERROR]${RESET} $*" >&2; exit 1; }
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --port) PANEL_PORT="$2"; shift 2 ;;
+        --quiet) QUIET=1; shift ;;
         --uninstall)
             systemctl disable --now pasarguard-panel 2>/dev/null || true
             rm -f "$SERVICE" "$PANEL_BIN"
@@ -47,7 +49,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 install -d "$PANEL_LIB"
 
 # --- pasarguard-backup.sh -----------------------------------------------------------
-if [[ -f "$HERE/pasarguard-backup.sh" ]]; then
+if [[ -n "${BACKUPER_KEEP_ENGINE:-}" && -f "$SCRIPT_PATH" ]]; then
+    ok "Engine already installed: $SCRIPT_PATH"
+elif [[ -f "$HERE/pasarguard-backup.sh" ]]; then
     install -m 755 "$HERE/pasarguard-backup.sh" "$SCRIPT_PATH"
 elif [[ -f "$HERE/../pasarguard-backup.sh" ]]; then
     install -m 755 "$HERE/../pasarguard-backup.sh" "$SCRIPT_PATH"
@@ -78,6 +82,8 @@ else
 fi
 
 # --- service ---------------------------------------------------------------
+STARTED=0
+MANAGE=""
 if command -v systemctl >/dev/null 2>&1; then
     cat > "$SERVICE" <<EOF
 [Unit]
@@ -95,28 +101,34 @@ User=root
 [Install]
 WantedBy=multi-user.target
 EOF
-    systemctl daemon-reload
+    systemctl daemon-reload >/dev/null 2>&1 || true
     systemctl enable pasarguard-panel >/dev/null 2>&1 || true
-    systemctl restart pasarguard-panel
+    systemctl restart pasarguard-panel >/dev/null 2>&1 || true
     sleep 1
     if systemctl is-active --quiet pasarguard-panel; then
         ok "Service pasarguard-panel is running."
         MANAGE="systemctl status pasarguard-panel / journalctl -u pasarguard-panel -f"
-    else
-        warn "The service did not start. Check: journalctl -u pasarguard-panel -n 50"
-        MANAGE="journalctl -u pasarguard-panel -n 50"
+        STARTED=1
     fi
-else
-    warn "systemd not found, starting the panel with nohup."
-    pkill -f pasarguard-panel.py >/dev/null 2>&1 || true
+fi
+
+if [[ $STARTED -eq 0 ]]; then
+    warn "systemd is not available (or the unit failed), starting the panel with nohup."
+    pkill -f "pasarguard-panel.*--port $PANEL_PORT" >/dev/null 2>&1 || true
     nohup "$PANEL_BIN" --port "$PANEL_PORT" --script "$SCRIPT_PATH" >/root/.pasarguard_panel.log 2>&1 &
-    sleep 1
+    sleep 2
     MANAGE="tail -f /root/.pasarguard_panel.log"
+    if curl -fsS "http://127.0.0.1:$PANEL_PORT/api/health" >/dev/null 2>&1; then
+        ok "Panel started in the background (log: /root/.pasarguard_panel.log)."
+    else
+        warn "The panel did not answer on port $PANEL_PORT. Check: tail -n 50 /root/.pasarguard_panel.log"
+    fi
 fi
 
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 IP="${IP:-<server-ip>}"
 
+if [[ -z "${QUIET:-}" ]]; then
 echo
 echo "=============================================="
 echo -e "${GREEN} PasarGuard Backup panel is ready${RESET}"
@@ -134,3 +146,4 @@ echo
 echo " If the port is not reachable, open it in your firewall:"
 echo "   ufw allow $PANEL_PORT/tcp    # or: firewall-cmd --add-port=$PANEL_PORT/tcp"
 echo "=============================================="
+fi

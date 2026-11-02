@@ -46,13 +46,33 @@
 
 ## نصب
 
-اسکریپت را با دسترسی root روی سرور اجرا کنید:
+**فقط یک دستور** — هم موتور بکاپ نصب می‌شود، هم پنل وب:
 
 ```bash
-sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/pasarguard-backup.sh)"
+sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/install.sh)"
 ```
 
-سپس از منو:
+در پایان آدرس پنل، نام کاربری و رمز ساخته‌شده را چاپ می‌کند و پیشنهاد می‌دهد همان‌جا
+اولین بکاپ را بسازید. بعد از نصب، همه‌چیز با یک دستور در دسترس است:
+
+```bash
+sudo pasarguard-backup          # منو: ساخت بکاپ / بازگردانی / پنل
+```
+
+### گزینه‌های نصب‌کننده
+
+| گزینه | کار |
+|--------|-----|
+| *(بدون گزینه)* | موتور + پنل وب + راهنمای اولین بکاپ |
+| `--no-panel` | فقط موتور بکاپ |
+| `--panel-only` | فقط پنل وب |
+| `--port N` | پورت پنل (پیش‌فرض `8080`) |
+| `--yes` / `-y` | بدون پرسیدن برای ساخت اولین بکاپ |
+| `--uninstall` | حذف پنل (بکاپ‌ها دست‌نخورده می‌مانند) |
+| `restore` | اجرای ویزارد بازگردانی |
+| `--help` | نمایش راهنما |
+
+منویی که پس از نصب می‌آید:
 
 ```
 ======== PasarGuard Backup Menu [v1.0.0] ========
@@ -73,7 +93,13 @@ sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/ma
 گزینه‌ی `2) Restore Backup` در منو، یا مستقیم:
 
 ```bash
-sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/pasarguard-backup.sh) restore"
+sudo pasarguard-backup restore
+```
+
+روی سروری که هنوز چیزی نصب نشده هم همان یک دستور کافی است (بدون مرحله‌ی نصب):
+
+```bash
+sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/install.sh)" restore
 ```
 
 بازگردانی چه می‌کند؟
@@ -90,8 +116,11 @@ sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/ma
 
 ## پنل وب
 
+پنل وب بخشی از همان یک دستور نصب بالاست و جداگانه نصب نمی‌خواهد. اگر جایی فقط پنل را
+می‌خواهید (موتور از قبل نصب است):
+
 ```bash
-sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/panel/install.sh)"
+sudo bash -c "$(curl -sL https://github.com/Hosein21378/pasarguard-backup/raw/main/install.sh)" -- --panel-only
 ```
 
 نصب‌کننده آدرس پنل، نام کاربری و رمز ساخته‌شده را چاپ می‌کند. از منو هم: `5) Web Panel`.
@@ -126,6 +155,7 @@ bash pasarguard-backup.sh restore
 ## ساختار پروژه
 
 ```
+install.sh                      نصب‌کننده‌ی یک‌خطی (موتور + پنل)
 pasarguard-backup.sh            موتور بکاپ و بازگردانی (یک فایل)
 panel/pasarguard-panel.py       پنل وب (فقط کتابخانه‌های استاندارد)
 panel/install.sh                نصب‌کننده‌ی پنل (systemd + رمز عبور)
@@ -136,6 +166,7 @@ panel/install.sh                نصب‌کننده‌ی پنل (systemd + رم�
 - `pasarguard-backup.sh` → `PROJECT_NAME`، `PROJECT_OWNER`، `PROJECT_OWNER_LINK`، `GITHUB_REPO`، `REPO_BRANCH`، `REPO_RAW`، `VERSION`
 - `panel/pasarguard-panel.py` → `PRODUCT_NAME`، `PRODUCT_NAME_FA`، `REPO_URL`، `VERSION`
 - `panel/install.sh` → `REPO_RAW`، `REPO_URL`
+- `install.sh` → `REPO_RAW`، `REPO_URL`
 
 ## اعتبارها
 
